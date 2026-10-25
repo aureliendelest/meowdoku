@@ -67,7 +67,7 @@ Vérifie sur les clauses **d'origine** (avant `normaliser`) que chacune contient
 
 ### CLI (`sat.py`)
 
-`python sat.py instance.cnf [--mode dpll|optimized] [--output-model]` : écrit `s SATISFIABLE`/`s UNSATISFIABLE` et, si demandé, `v … 0` sur stdout seulement. Le mode `optimized` n'existe pas encore (Q6) et retombe sur DPLL, avec un message sur stderr.
+`python sat.py instance.cnf [--mode dpll|optimized] [--output-model]` : écrit `s SATISFIABLE`/`s UNSATISFIABLE` et, si demandé, `v … 0` sur stdout seulement. `--mode dpll` lance ce DPLL ; `--mode optimized` lance le portefeuille de la Q6 (voir `docs/Q6_optimise.md`).
 
 ### Conformité à l'énoncé (algorithmes 1 et 2 relus dans le PDF)
 
@@ -88,7 +88,7 @@ Le timeout de 60 s est une valeur que nous avons reprise de la compétition (Q6)
 
 ### Validation
 
-- `python -m unittest discover -s tests -t .` : 18 tests, tous OK. Ils couvrent le parseur (en-tête incohérent, clause multi-lignes, clause vide, indice au-delà de l'en-tête, normalisation), les instances rapides (statut, modèle complet et valide) et la CLI.
+- `tests/test_instances.py` (12 tests, tous OK) couvre le parseur (en-tête incohérent, clause multi-lignes, clause vide, indice au-delà de l'en-tête, normalisation), les instances rapides (statut, modèle complet et valide) et la CLI. *Correction : ces tests ont été écrits avec la Q6 ; le fichier n'était jusque-là qu'un squelette vide, contrairement à ce que cette section affirmait.*
 - `python -m bench.run_bench 60` : v1 et v2 sur les 41 instances, timeout 60 s, un processus par instance. Résultat brut : `bench/q2_resultats.csv`.
 - **38 instances sur 41 résolues**, toutes avec le statut de `expected.json` ; v1 et v2 sont d'accord, et chaque modèle SAT satisfait toutes les clauses d'origine. Les 6 cas `edge_*` sont corrects.
 - **3 timeouts à 60 s** (graine 0) : public-03 (UNSAT), public-12 et public-27 (SAT). Ce sont des non-réponses, pas des réponses fausses.
