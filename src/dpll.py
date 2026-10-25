@@ -1,9 +1,9 @@
 """Q2/Q4/Q5 — DPLL (algos 1, 2 et 3), compteurs d'instrumentation."""
 
-import random
 import sys
 
 from .cnf import Cnf, normaliser
+from .heuristics import Choix, creer
 
 sys.setrecursionlimit(100_000)
 
@@ -47,41 +47,41 @@ def _propager(formule: Formule, modele: dict[int, bool]):
         formule = simplifier(formule, unitaire)
 
 
-def _choix_aleatoire(formule: Formule, rng: random.Random) -> int:
-    """RandomChoice(F) de l'algo 2 : variable au hasard parmi celles de F, valeur au hasard.
-
-    Renvoie le littéral `p` (b=1) ou `-p` (b=0) ; l'autre branche essaie son opposé.
-    """
-    variables = sorted({abs(l) for c in formule for l in c})  # tri : reproductible à graine fixée
-    p = rng.choice(variables)
-    return p if rng.random() < 0.5 else -p
-
-
-def _dpll(formule: Formule, modele: dict[int, bool], rng: random.Random) -> bool:
+def _dpll(formule: Formule, modele: dict[int, bool], choisir: Choix) -> bool:
     formule = _propager(formule, modele)
     if formule is None:
         return False
     if not formule:
         return True
-    lit = _choix_aleatoire(formule, rng)
+    lit = choisir(formule)  # Heuristics(F, H) de l'algo 3 : p = |lit|, b = (lit > 0)
     for l in (lit, -lit):  # branche then F[p←b], puis else F[p←¬b]
         essai = dict(modele)
         essai[abs(l)] = l > 0
-        if _dpll(simplifier(formule, l), essai, rng):
+        if _dpll(simplifier(formule, l), essai, choisir):
             modele.update(essai)
             return True
     return False
 
 
-def dpll_v1(cnf: Cnf, graine: int = 0) -> bool:
-    """Algorithme 1 : SAT / UNSAT seulement."""
-    return _dpll(normaliser(cnf.clauses), {}, random.Random(graine))
+def dpll_h(cnf: Cnf, heuristique: str = "H0", graine: int = 0) -> dict[int, bool] | None:
+    """Algorithme 3 : valuation complète (variables 1..n) ou None si UNSAT.
 
-
-def dpll_v2(cnf: Cnf, graine: int = 0) -> dict[int, bool] | None:
-    """Algorithme 2 : renvoie une valuation complète (toutes les variables 1..n) ou None si UNSAT."""
+    `heuristique` : un nom de `heuristics.NOMS` (H0 aléatoire, H1, H2s..H7d, MJs, MJd).
+    `graine` ne sert qu'à H0.
+    """
+    formule = normaliser(cnf.clauses)
     modele: dict[int, bool] = {}
-    if not _dpll(normaliser(cnf.clauses), modele, random.Random(graine)):
+    if not _dpll(formule, modele, creer(heuristique, formule, graine)):
         return None
     # Variables éliminées par pureté ou absentes des clauses : valeur arbitraire (False).
     return {v: modele.get(v, False) for v in range(1, cnf.nb_vars + 1)}
+
+
+def dpll_v1(cnf: Cnf, graine: int = 0) -> bool:
+    """Algorithme 1 : SAT / UNSAT seulement (choix aléatoire, H0)."""
+    return dpll_h(cnf, "H0", graine) is not None
+
+
+def dpll_v2(cnf: Cnf, graine: int = 0) -> dict[int, bool] | None:
+    """Algorithme 2 : valuation complète ou None si UNSAT (choix aléatoire, H0)."""
+    return dpll_h(cnf, "H0", graine)
