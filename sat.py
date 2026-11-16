@@ -9,7 +9,7 @@ import threading
 
 from src.cnf import read_dimacs
 from src.dpll import dpll_v2
-from src.optimized import resoudre
+from src.optimized import agrandir_la_pile, resoudre
 
 
 def afficher(modele, output_model: bool) -> None:
@@ -34,7 +34,7 @@ def main() -> None:
         # nombre de variables. Un thread à part, car le mode optimisé crée des processus
         # et on évite de forker depuis un programme multi-thread.
         res = []
-        threading.stack_size(512 * 1024 * 1024)
+        agrandir_la_pile()
         t = threading.Thread(target=lambda: res.append(dpll_v2(cnf)))
         t.start()
         t.join()

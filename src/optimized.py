@@ -22,7 +22,21 @@ from .cnf import Cnf, verifier_modele
 from .dpll import dpll_h
 
 PORTEFEUILLE = (("H4d", 0), ("H1", 0), ("H0", 1), ("H0", 2))
-PILE = 512 * 1024 * 1024  # la récursion de DPLL peut descendre jusqu'au nombre de variables
+# La récursion de DPLL peut descendre jusqu'au nombre de variables, d'où une pile
+# large. Windows refuse les très grandes tailles (ValueError) : on essaie par
+# ordre décroissant et on garde la première acceptée. Sans cela, le solveur est
+# inutilisable hors Linux.
+TAILLES_PILE = (512 * 1024 * 1024, 128 * 1024 * 1024, 32 * 1024 * 1024, 8 * 1024 * 1024)
+
+
+def agrandir_la_pile() -> None:
+    """Fixe la plus grande taille de pile que le système accepte."""
+    for taille in TAILLES_PILE:
+        try:
+            threading.stack_size(taille)
+            return
+        except (ValueError, RuntimeError):
+            continue
 
 
 def _surveiller_parent(parent: int) -> None:
@@ -35,7 +49,7 @@ def _surveiller_parent(parent: int) -> None:
 
 def _travail(cnf: Cnf, heuristique: str, graine: int, rang: int, q) -> None:
     threading.Thread(target=_surveiller_parent, args=(os.getppid(),), daemon=True).start()
-    threading.stack_size(PILE)
+    agrandir_la_pile()
 
     def run():
         try:
