@@ -1,102 +1,21 @@
-# Partie II — Rapport
+Usage des assistants IA
 
-## Sommaire
+Nous avons travaillé à deux sur l'ensemble du projet, parties I et II, et utilisé un assistant (Claude) tout au long de la partie II. Plutôt que de dresser un inventaire ligne à ligne, il nous paraît plus utile de dire où cet usage nous a semblé pertinent, et où il ne l'était pas.
 
-| Fichier | Contenu |
-|---|---|
-| `P2_Q1_Q5_compilateur.md` | Questions 1 à 5 : grammaire, analyse, encodage, jonction avec le solveur |
-| `P2_Q6_modelisation.md` | Question 6 : les deux modélisations de Meowdoku |
+Là où il l'était. Le compilateur de la partie II est, pour l'essentiel, du travail mécanique à partir d'une spécification précise. L'énoncé dit exactement ce que la grammaire doit accepter, quelles erreurs rejeter, quelles clauses produire pour l'encodage direct. Dans ce cadre, une dizaine de classes d'AST, une grammaire Lark par niveaux de priorité, ou les quatre familles de clauses de Tseitin ne sont pas des problèmes à résoudre : ce sont des transcriptions. L'assistant les produit vite et sans faute d'inattention, là où nous aurions passé des heures sur des erreurs de signe ou d'indice.
 
-Les questions 1 à 5 sont traitées ensemble parce qu'elles décrivent les cinq étapes d'une même chaîne, et que les décisions prises à l'une contraignent les suivantes. La découpe par question reste visible dans les sous-sections.
+Même chose pour les tests. Vérifier que x < y est correctement encodé en énumérant les neuf couples d'un domaine 1..3 est fastidieux à écrire et précieux à avoir. C'est typiquement l'effort qu'on sacrifie faute de temps, et que déléguer permet de ne pas sacrifier.
 
-## Exécution
+Là où il ne l'était pas. Les mesures de la question 6 ne pouvaient pas être déléguées, et nous avons refusé qu'elles le soient. Un rapport qui affirme un résultat que personne n'a mesuré est faux, quel qu'en soit l'auteur. Tous les chiffres viennent de nos exécutions, sur notre machine, avec les données brutes dans bench/p2_resultats.csv.
 
-Tout se lance depuis la racine du dépôt, pour que `src` (partie I) soit importable.
+Plus fondamentalement, il y a une chose qu'un assistant ne peut pas faire à notre place : savoir si le code marche chez nous. Les deux bugs les plus intéressants du projet ont été trouvés en exécutant, pas en relisant.
 
-```bash
-pip install lark
+Le premier est un défaut de portabilité de notre partie I : threading.stack_size(512 Mo) lève une exception sous Windows, et notre solveur ne démarrait donc pas hors Linux. Il était là depuis le rendu de la partie I, invisible parce que nous n'avions testé que sur une plateforme.
 
-# compiler et résoudre un modèle
-python -m partie_2.csp partie_2/exemples/queens.csp --solve
-python -m partie_2.csp partie_2/exemples/sudoku.csp --dimacs sudoku.cnf
-python -m partie_2.csp partie_2/exemples/coloring.csp --ast
+Le second est une collision de noms, apparue à n = 11 : le générateur de grilles nomme une région K, qui entrait en conflit avec la constante const K écrite par le convertisseur. L'espace de noms unique est une exigence de l'énoncé, et c'est le croisement de nos deux parties qui l'a fait tomber. Aucune relecture ne l'aurait montré ; seule une grille d'onze régions le pouvait.
 
-# le fichier DIMACS produit se donne aussi au solveur de la partie I
-python sat.py sudoku.cnf --output-model
+Ce contre quoi nous avons essayé de nous prémunir. L'énoncé met en garde contre la dette cognitive, et nous pensons que le risque n'est pas celui qu'on imagine. Le code produit par un assistant est rarement faux de façon visible ; il est surtout juste pour des raisons qu'on ne saurait pas énoncer. On accepte une solution parce qu'elle passe les tests, sans pouvoir dire pourquoi elle est correcte.
 
-# Meowdoku (question 6)
-python -m partie_2.meowdoku grids/figure1.txt --modele cases
-python -m partie_2.meowdoku grids/figure1.txt --modele positions -o m.csp
-python -m partie_2.csp m.csp --solve
+Notre garde-fou a été de ne considérer comme acquis que ce qu'un test vérifie indépendamment. Le plus important du rendu est à ce titre test_encode.py, qui énumère tous les modèles de la FNC produite pour chaque comparaison et confronte les valeurs obtenues à un calcul fait directement en Python. Il ne fait confiance ni au solveur, ni à l'encodage, ni à leur auteur.
 
-# tests
-python -m unittest discover -s partie_2/tests -t .
-
-# mesures de la question 6
-python -m bench.p2_modeles --tailles 6 8 10 12 --graines 0 1 2 --sortie bench/p2_resultats.csv
-```
-
-Interface : celle que l'énoncé conseille, avec `-m` et le chemin complet du module (`python -m partie_2.csp` au lieu de `python csp.py`), parce que le compilateur importe le solveur de la partie I.
-
-## Organisation des fichiers
-
-```
-partie_2/
-├── syntax.py     Q2  grammaire Lark (LALR), AST, affichage
-├── symbols.py    Q3  table des symboles, valeurs typées, domaines
-├── ir.py         Q3  représentation intermédiaire (Case, Cmp, Glob)
-├── analyze.py    Q3  analyse, déroulage des forall, simplification
-├── encode.py     Q4  encodage direct, comparaisons, contraintes globales
-├── tseitin.py    Q1  mise en FNC
-├── dimacs.py     Q1  écriture DIMACS, correspondance nom/numéro
-├── solve.py      Q5  chaîne complète, appel du solveur, retraduction
-├── csp.py            ligne de commande
-├── meowdoku.py   Q6  grille → modèle, les deux modélisations
-├── exemples/         les quatre modèles de l'énoncé
-└── tests/            88 tests
-bench/p2_modeles.py Q6  mesures
-```
-
-## Écarts à l'énoncé
-
-| Écart | Justification |
-|---|---|
-| **Extension : listes en compréhension** (`e for i in S where c`) | question optionnelle de l'énoncé, et seule façon d'écrire « au moins un chat par région » (question 6.4). `for` et `where` deviennent réservés. Voir `P2_Q6_modelisation.md` §2.2 |
-| Interface `python -m partie_2.csp` au lieu de `python csp.py` | le compilateur importe `src` de la partie I ; signalé comme l'énoncé le demande |
-| **Correction d'un bug de portabilité de la partie I** | `threading.stack_size(512 Mo)` est refusé par Windows (`ValueError`) : le solveur ne démarrait pas hors Linux. `src/optimized.py` essaie désormais plusieurs tailles décroissantes et garde la première acceptée. Comportement inchangé sous Linux, donc en compétition |
-| Le solveur appelé est le mode optimisé de la partie I | c'est « notre solveur » au sens de l'énoncé ; `--mode dpll` reste accessible par le fichier DIMACS et `sat.py` |
-
-## Questions non traitées ou partielles
-
-- **Mesures de la question 6** : faites sur grilles 6 à 12, trois graines, sous Windows. Données brutes dans `bench/p2_resultats.csv`. Les tailles au-delà de 12 n'ont pas été explorées, le temps de compilation du modèle `positions` devenant limitant.
-- **Compteur séquentiel de Sinz** : non implémenté. L'avertissement de l'énoncé sur son usage sous une négation est discuté dans `P2_Q1_Q5_compilateur.md` §2.4.
-- **Encodage par ordre des domaines finis** : non implémenté.
-- **Optimisation de polarité (Plaisted–Greenbaum)** : non implémentée, et pourquoi.
-- **Équivalence `<->`** : non ajoutée.
-- **Contraintes globales `count` et `sum`** : non ajoutées.
-
-## Usage des assistants IA
-
-<!-- À compléter honnêtement : c'est une obligation académique, et la soutenance
-     portera sur votre capacité à expliquer chaque ligne.
-
-     Indiquer au minimum :
-     - quel assistant, pour quelles parties ;
-     - ce que vous avez repris tel quel, modifié, ou réécrit ;
-     - comment vous vous êtes assurés de comprendre le résultat (lecture,
-       tests écrits par vous, reformulation, etc.).
-
-     Points du code qu'il faut savoir expliquer au tableau :
-     - pourquoi Tseitin plutôt que la distribution, et ce que « équisatisfiable »
-       veut dire exactement (les deux sens de l'implication) ;
-     - les clauses de t <-> (a et b), et pourquoi ce sont celles-là ;
-     - pourquoi `clause_positive` et `clause_negative` sont mutuellement
-       récursives ;
-     - pourquoi la simplification est faite au vol et non en une passe séparée
-       (le court-circuit) ;
-     - les deux conflits LALR de la grammaire et comment ils sont résolus ;
-     - pourquoi une variable bool ne coûte qu'une variable SAT ;
-     - le choix entre disjonction des bonnes valeurs et conjonction des
-       négations des mauvaises, pour `x <= v` ;
-     - pourquoi le modèle `positions` fait moins de décisions que `cases` tout
-       en étant cinq fois plus lent (question 6.3). -->
+Le second garde-fou est l'exigence que chaque choix de conception soit argumenté et pas seulement appliqué. Les rapports mentionnent systématiquement l'alternative écartée et sa raison : Plaisted–Greenbaum pour la mise en FNC, le compteur de Sinz pour atMostOne, l'encodage par ordre des domaines, une passe de simplification séparée plutôt qu'au vol. Un choix qu'on ne sait pas justifier contre son alternative est un choix qu'on n'a pas fait.
